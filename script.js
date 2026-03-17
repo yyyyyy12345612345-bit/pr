@@ -30,7 +30,7 @@ const initThree = () => {
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, w / h, 0.1, 1000);
-    camera.position.set(-7, -5, 11);
+    camera.position.set(0, 8, 18); // زاوية مثالية زي الصورة
     camera.lookAt(0, 0, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -39,51 +39,40 @@ const initThree = () => {
     renderer.shadowMap.enabled = true;
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
-    renderer.setClearColor(0xffffff, 1);
+    renderer.setClearColor(0xffffff, 1); // خلفية بيضاء فخمة كالأصل
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.enableZoom = false;
 
-    // Floor Shader
+    // Floor Shader (High Contrast Black & White)
     const floorMaterial = new THREE.ShaderMaterial({
         vertexShader: `
             varying vec2 vUv;
-            varying vec3 vNormal;
-            varying vec3 vPosition;
             void main() {
                 vUv = uv;
-                vNormal = normalize(normalMatrix * normal);
-                vPosition = position;
                 gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
             }
         `,
         fragmentShader: `
             uniform float uTime;
-            uniform vec3 uCameraPosition;
             varying vec2 vUv;
-            varying vec3 vNormal;
-            varying vec3 vPosition;
             void main() {
                 vec2 center = vec2(0.5, 0.5);
                 float dist = distance(vUv, center);
-                float animatedDist = dist - uTime * 0.01;
-                float circle = mod(animatedDist, 0.06);
-                float distFromEdge = min(circle, 0.06 - circle);
-                float aaWidth = length(vec2(dFdx(animatedDist), dFdy(animatedDist))) * 2.0;
-                float lineAlpha = 1.0 - smoothstep(0.018, 0.022, distFromEdge);
-                vec3 baseColor = mix(vec3(1.0), vec3(0.0), lineAlpha);
-                vec3 normal = normalize(vNormal);
-                vec3 viewDir = normalize(uCameraPosition - vPosition);
-                float fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), 2.0);
-                vec3 finalColor = baseColor + (vec3(1.0) * fresnel * 0.3);
-                float alpha = 1.0 - smoothstep(0.3, 0.5, dist);
-                gl_FragColor = vec4(finalColor, alpha);
+                float animatedDist = dist - uTime * 0.02;
+                float circle = mod(animatedDist, 0.1);
+                
+                // دوائر سوداء وبيضاء حادة الاحترافية
+                float mask = smoothstep(0.02, 0.025, min(circle, 0.1 - circle));
+                vec3 color = mix(vec3(0.0), vec3(1.0), mask);
+                
+                float alpha = 1.0 - smoothstep(0.45, 0.5, dist);
+                gl_FragColor = vec4(color, alpha);
             }
         `,
         uniforms: {
             uTime: { value: 0.0 },
-            uCameraPosition: { value: new THREE.Vector3() },
         },
         side: THREE.DoubleSide,
         transparent: true,
