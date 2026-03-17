@@ -30,7 +30,13 @@ const initThree = () => {
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, w / h, 0.1, 1000);
-    camera.position.set(0, 8, 18); // زاوية مثالية زي الصورة
+    
+    // Adjust camera for mobile
+    if (w < 768) {
+        camera.position.set(0, 12, 25);
+    } else {
+        camera.position.set(0, 8, 18);
+    }
     camera.lookAt(0, 0, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
