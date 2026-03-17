@@ -203,9 +203,21 @@
                                 <label>Tags (Comma separated)</label>
                                 <input type="text" id="proj-tags" placeholder="React, Firebase, Tailwind">
                             </div>
-                            <div class="input-group">
-                                <label>Thumbnail Image URL</label>
-                                <input type="url" id="proj-img" placeholder="https://images.unsplash.com/...">
+                            <div class="input-group full">
+                                <label>Project Thumbnail</label>
+                                <div class="upload-wrapper glass">
+                                    <input type="file" id="proj-img-file" accept="image/*" class="file-input">
+                                    <div class="upload-content">
+                                        <i class="fas fa-cloud-upload-alt"></i>
+                                        <p>Click to upload or drag & drop</p>
+                                        <span class="file-status">No file selected</span>
+                                    </div>
+                                    <div id="img-preview" class="img-preview" style="display:none;">
+                                        <img src="" id="preview-tag">
+                                        <button type="button" id="remove-img" class="btn-remove">&times;</button>
+                                    </div>
+                                </div>
+                                <input type="hidden" id="proj-img-url">
                             </div>
                         </div>
                         <button type="submit" id="save-project" class="btn btn-primary">

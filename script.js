@@ -257,12 +257,46 @@ const setupAuth = () => {
 // --- New Project Form ---
 const setupForm = () => {
     const form = document.getElementById('project-form');
+    const fileInput = document.getElementById('proj-img-file');
+    const urlInput = document.getElementById('proj-img-url');
+    const preview = document.getElementById('img-preview');
+    const previewTag = document.getElementById('preview-tag');
+    const removeBtn = document.getElementById('remove-img');
+
+    if (fileInput) {
+        fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    urlInput.value = event.target.result;
+                    previewTag.src = event.target.result;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+    }
+
+    if (removeBtn) {
+        removeBtn.onclick = () => {
+            fileInput.value = '';
+            urlInput.value = '';
+            preview.style.display = 'none';
+        };
+    }
+
     form.onsubmit = async (e) => {
         e.preventDefault();
         const btn = document.getElementById('save-project');
         const originalBtn = btn.innerHTML;
 
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        if (!urlInput.value) {
+            alert("Please upload a project thumbnail.");
+            return;
+        }
+
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
         btn.disabled = true;
 
         const projectData = {
@@ -270,13 +304,14 @@ const setupForm = () => {
             description: document.getElementById('proj-desc').value,
             link: document.getElementById('proj-link').value,
             tags: document.getElementById('proj-tags').value,
-            image: document.getElementById('proj-img').value,
+            image: urlInput.value,
             createdAt: serverTimestamp()
         };
 
         try {
             await addDoc(collection(db, "projects"), projectData);
             form.reset();
+            preview.style.display = 'none';
             alert("Project successfully published!");
             fetchProjects();
         } catch (e) {
