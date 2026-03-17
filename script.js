@@ -3,7 +3,8 @@ import { OrbitControls } from "jsm/controls/OrbitControls.js";
 import { OBJLoader } from "jsm/loaders/OBJLoader.js";
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-import { getFirestore, collection, addDoc, getDocs, orderBy, query, deleteDoc, doc } from "firebase/firestore";
+import { getFirestore, collection, addDoc, getDocs, orderBy, query, deleteDoc, doc, serverTimestamp } from "firebase/firestore";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "firebase/auth";
 
 // --- Firebase Initialization ---
 const firebaseConfig = {
@@ -17,10 +18,10 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
 const db = getFirestore(app);
+const auth = getAuth(app);
 
-// --- 3D Scene (UMBRAL) ---
+// --- 3D Scene Initialization ---
 const initThree = () => {
     const container = document.getElementById('three-container');
     if (!container) return;
@@ -36,7 +37,6 @@ const initThree = () => {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(w, h);
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
     renderer.setClearColor(0xffffff, 1);
@@ -44,79 +44,54 @@ const initThree = () => {
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.enableZoom = false;
-    controls.minPolarAngle = Math.PI / 3;
-    controls.maxPolarAngle = Math.PI / 2.2;
 
-    const vertexShader = `
-      varying vec2 vUv;
-      varying vec3 vNormal;
-      varying vec3 vPosition;
-      void main() {
-        vUv = uv;
-        vNormal = normalize(normalMatrix * normal);
-        vPosition = position;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `;
-
-    const fragmentShader = `
-      uniform float uTime;
-      uniform float uCircleSpacing;
-      uniform float uLineWidth;
-      uniform float uSpeed;
-      uniform float uFadeEdge;
-      uniform vec3 uCameraPosition;
-      varying vec2 vUv;
-      varying vec3 vNormal;
-      varying vec3 vPosition;
-
-      void main() {
-        vec2 center = vec2(0.5, 0.5);
-        vec2 uv = vUv;
-        float dist = distance(uv, center);
-        float animatedDist = dist - uTime * uSpeed;
-        float circle = mod(animatedDist, uCircleSpacing);
-        float distFromEdge = min(circle, uCircleSpacing - circle);
-        float aaWidth = length(vec2(dFdx(animatedDist), dFdy(animatedDist))) * 2.0;
-        float lineAlpha = 1.0 - smoothstep(uLineWidth - aaWidth, uLineWidth + aaWidth, distFromEdge);
-
-        vec3 baseColor = mix(vec3(1.0), vec3(0.0), lineAlpha);
-        vec3 normal = normalize(vNormal);
-        vec3 viewDir = normalize(uCameraPosition - vPosition);
-        vec3 lightDir = normalize(vec3(5.0, 10.0, 5.0));
-        float NdotL = max(dot(normal, lightDir), 0.0);
-        vec3 diffuse = baseColor * (0.5 + 0.5 * NdotL);
-        vec3 reflectDir = reflect(-lightDir, normal);
-        float spec = pow(max(dot(viewDir, reflectDir), 0.0), 64.0);
-        vec3 specular = vec3(1.0) * spec * 0.8;
-        float fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), 2.0);
-        vec3 fresnelColor = vec3(1.0) * fresnel * 0.3;
-        vec3 finalColor = diffuse + specular + fresnelColor;
-        float edgeFade = smoothstep(0.5 - uFadeEdge, 0.5, dist);
-        float alpha = 1.0 - edgeFade;
-        gl_FragColor = vec4(finalColor, alpha);
-      }
-    `;
-
-    const floorGeometry = new THREE.CircleGeometry(20, 200);
+    // Floor Shader
     const floorMaterial = new THREE.ShaderMaterial({
-        vertexShader,
-        fragmentShader,
+        vertexShader: `
+            varying vec2 vUv;
+            varying vec3 vNormal;
+            varying vec3 vPosition;
+            void main() {
+                vUv = uv;
+                vNormal = normalize(normalMatrix * normal);
+                vPosition = position;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            uniform float uTime;
+            uniform vec3 uCameraPosition;
+            varying vec2 vUv;
+            varying vec3 vNormal;
+            varying vec3 vPosition;
+            void main() {
+                vec2 center = vec2(0.5, 0.5);
+                float dist = distance(vUv, center);
+                float animatedDist = dist - uTime * 0.01;
+                float circle = mod(animatedDist, 0.06);
+                float distFromEdge = min(circle, 0.06 - circle);
+                float aaWidth = length(vec2(dFdx(animatedDist), dFdy(animatedDist))) * 2.0;
+                float lineAlpha = 1.0 - smoothstep(0.018, 0.022, distFromEdge);
+                vec3 baseColor = mix(vec3(1.0), vec3(0.0), lineAlpha);
+                vec3 normal = normalize(vNormal);
+                vec3 viewDir = normalize(uCameraPosition - vPosition);
+                float fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), 2.0);
+                vec3 finalColor = baseColor + (vec3(1.0) * fresnel * 0.3);
+                float alpha = 1.0 - smoothstep(0.3, 0.5, dist);
+                gl_FragColor = vec4(finalColor, alpha);
+            }
+        `,
         uniforms: {
             uTime: { value: 0.0 },
-            uCircleSpacing: { value: 0.06 },
-            uLineWidth: { value: 0.02 },
-            uSpeed: { value: 0.01 },
-            uFadeEdge: { value: 0.2 },
             uCameraPosition: { value: new THREE.Vector3() },
         },
         side: THREE.DoubleSide,
         transparent: true,
     });
-    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(20, 150), floorMaterial);
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -1;
-    floor.receiveShadow = true;
     scene.add(floor);
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -124,68 +99,48 @@ const initThree = () => {
 
     const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
     directionalLight.position.set(5, 10, 5);
-    directionalLight.castShadow = true;
     scene.add(directionalLight);
 
     const loader = new OBJLoader();
-    loader.load(
-        "https://cdn.jsdelivr.net/gh/danielyl123/person/person.obj",
-        (object) => {
-            object.traverse((child) => {
-                if (child.isMesh) {
-                    child.material = new THREE.MeshStandardMaterial({
-                        color: 0x888888,
-                        roughness: 0.7,
-                        metalness: 0.3,
-                    });
-                    child.castShadow = true;
-                    child.receiveShadow = true;
-                }
-            });
-            const box = new THREE.Box3().setFromObject(object);
-            const center = new THREE.Vector3();
-            box.getCenter(center);
-            const size = new THREE.Vector3();
-            box.getSize(size);
-
-            object.traverse((child) => {
-                if (child.isMesh && child.geometry) {
-                    child.geometry.translate(-center.x, -center.y, -center.z);
-                }
-            });
-
-            const maxDim = Math.max(size.x, size.y, size.z);
-            const scale = 4 / maxDim;
-            object.scale.set(scale, scale, scale);
-            object.position.set(0, 1, 0);
-            object.rotation.y = Math.PI / 3;
-            scene.add(object);
-        }
-    );
+    loader.load("https://cdn.jsdelivr.net/gh/danielyl123/person/person.obj", (object) => {
+        object.traverse((child) => {
+            if (child.isMesh) {
+                child.material = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.7, metalness: 0.3 });
+                child.castShadow = true;
+            }
+        });
+        const box = new THREE.Box3().setFromObject(object);
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        object.traverse((child) => { if (child.isMesh && child.geometry) child.geometry.translate(-center.x, -center.y, -center.z); });
+        const scale = 4 / Math.max(size.x, size.y, size.z);
+        object.scale.set(scale, scale, scale);
+        object.position.set(0, 1, 0);
+        object.rotation.y = Math.PI / 3;
+        scene.add(object);
+    });
 
     let time = 0;
     const animate = () => {
         requestAnimationFrame(animate);
         time += 0.016;
         floorMaterial.uniforms.uTime.value = time;
-        const cameraWorldPos = new THREE.Vector3();
-        camera.getWorldPosition(cameraWorldPos);
-        floorMaterial.uniforms.uCameraPosition.value.copy(cameraWorldPos);
+        floorMaterial.uniforms.uCameraPosition.value.copy(camera.position);
         renderer.render(scene, camera);
         controls.update();
     };
     animate();
 
     window.addEventListener("resize", () => {
-        const nw = container.clientWidth;
-        const nh = container.clientHeight;
-        renderer.setSize(nw, nh);
-        camera.aspect = nw / nh;
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        camera.aspect = container.clientWidth / container.clientHeight;
         camera.updateProjectionMatrix();
     });
 };
 
-// --- Project Rendering ---
+// --- Portfolio Rendering ---
 const fetchProjects = async () => {
     const container = document.getElementById('projects-container');
     const adminList = document.getElementById('admin-projects-list');
@@ -197,8 +152,8 @@ const fetchProjects = async () => {
         if (adminList) adminList.innerHTML = '';
         
         if (querySnapshot.empty) {
-            container.innerHTML = '<p>No projects yet.</p>';
-            if (adminList) adminList.innerHTML = '<p>No projects to manage.</p>';
+            container.innerHTML = '<p class="empty-msg">No projects showcased yet.</p>';
+            if (adminList) adminList.innerHTML = '<p>No projects in the database.</p>';
             return;
         }
 
@@ -206,11 +161,12 @@ const fetchProjects = async () => {
             const data = docSnap.data();
             const id = docSnap.id;
             
-            // User view card
+            // Public View
             container.innerHTML += `
-                <div class="project-card glass reveal">
+                <div class="project-card glass reveal-up">
+                    <div class="card-glow"></div>
                     <div class="project-img">
-                        <img src="${data.image || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97'}" alt="${data.title}">
+                        <img src="${data.image || 'https://images.unsplash.com/photo-1555066931-4365d14bab8c'}" alt="${data.title}">
                     </div>
                     <div class="project-info">
                         <h3>${data.title}</h3>
@@ -218,127 +174,159 @@ const fetchProjects = async () => {
                         <div class="project-tags">
                             ${(data.tags || '').split(',').map(tag => `<span>${tag.trim()}</span>`).join('')}
                         </div>
-                        ${data.link ? `<a href="${data.link}" target="_blank" class="btn btn-outline" style="margin-top: 1rem;">View Project</a>` : ''}
+                        ${data.link ? `<a href="${data.link}" target="_blank" class="btn btn-outline" style="margin-top: 1.5rem;">View Source <i class="fas fa-external-link-alt"></i></a>` : ''}
                     </div>
                 </div>
             `;
 
-            // Admin List Item
+            // Admin List
             if (adminList) {
                 adminList.innerHTML += `
                     <div class="admin-list-item">
                         <div class="info">
                             <h4>${data.title}</h4>
-                            <p style="font-size: 0.8rem; color: #aaa;">${id}</p>
+                            <p>${data.tags || 'No tags'}</p>
                         </div>
-                        <div class="actions">
-                            <button class="btn-delete" onclick="deleteProject('${id}')">Delete</button>
-                        </div>
+                        <button class="btn-delete" onclick="window.deleteProject('${id}')">
+                            <i class="fas fa-trash-alt"></i> Delete
+                        </button>
                     </div>
                 `;
             }
         });
-        
         revealOnScroll();
-
-    } catch (e) {
-        console.error("Error fetching: ", e);
-    }
+    } catch (e) { console.error("Error: ", e); }
 };
 
 window.deleteProject = async (id) => {
-    if (confirm("Are you sure you want to delete this project?")) {
+    if (confirm("Permanently delete this project from the database?")) {
         try {
             await deleteDoc(doc(db, "projects", id));
             fetchProjects();
-        } catch (e) {
-            alert("Delete failed.");
-        }
+        } catch (e) { alert("Action failed."); }
     }
 };
 
-// --- Dashboard Logic ---
-const setupDashboard = () => {
-    const modal = document.getElementById('admin-modal');
-    const loginSection = document.getElementById('admin-login-section');
-    const dashboardSection = document.getElementById('admin-main-dashboard');
+// --- Security & Auth Logic ---
+const setupAuth = () => {
+    const portal = document.getElementById('admin-portal');
+    const loginScreen = document.getElementById('login-screen');
+    const dashboard = document.getElementById('admin-dashboard');
     const loginBtn = document.getElementById('login-btn');
-    const adminEmailInput = document.getElementById('admin-email');
-    
-    // Tab Switching
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.onclick = () => {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            btn.classList.add('active');
-            document.getElementById(`${btn.dataset.tab}-tab`).classList.add('active');
-        };
+    const logoutBtn = document.getElementById('logout-btn');
+
+    // Monitor Auth State
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            loginScreen.style.display = 'none';
+            dashboard.style.display = 'flex';
+        } else {
+            loginScreen.style.display = 'block';
+            dashboard.style.display = 'none';
+        }
     });
 
-    // Login Logic
-    loginBtn.onclick = () => {
-        if (adminEmailInput.value === 'youssefosama@gmail.com') {
-            loginSection.style.display = 'none';
-            dashboardSection.style.display = 'block';
-        } else {
-            alert("Access Denied.");
+    // Login Handle
+    loginBtn.onclick = async () => {
+        const email = document.getElementById('admin-email').value;
+        const password = document.getElementById('admin-password').value;
+        const originalText = loginBtn.innerText;
+        
+        loginBtn.innerText = "Authenticating...";
+        loginBtn.disabled = true;
+
+        try {
+            await signInWithEmailAndPassword(auth, email, password);
+        } catch (e) {
+            alert("Invalid credentials. Please contact sys-admin.");
+            console.error(e);
+        } finally {
+            loginBtn.innerText = originalText;
+            loginBtn.disabled = false;
         }
     };
 
-    // Close Modal
-    document.querySelector('.close').onclick = () => modal.style.display = "none";
-    window.onclick = (event) => { if (event.target == modal) modal.style.display = "none"; };
+    // Logout Handle
+    logoutBtn.onclick = () => signOut(auth);
 
-    // New Project
-    document.getElementById('add-proj-btn').onclick = async () => {
-        const title = document.getElementById('proj-title').value;
-        const desc = document.getElementById('proj-desc').value;
-        const link = document.getElementById('proj-link').value;
-        const tags = document.getElementById('proj-tags').value;
-        const img = document.getElementById('proj-img').value;
+    // Dashboard View Toggling
+    document.querySelectorAll('.sidebar-btn').forEach(btn => {
+        btn.onclick = () => {
+            document.querySelectorAll('.sidebar-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.dash-view').forEach(v => v.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(`${btn.dataset.view}-view`).classList.add('active');
+        };
+    });
 
-        if (!title || !desc) return alert("Fill required fields.");
+    // Portal Controls
+    document.getElementById('admin-login-btn').onclick = () => portal.style.display = 'flex';
+    document.querySelectorAll('.close-portal').forEach(btn => {
+        btn.onclick = () => portal.style.display = 'none';
+    });
+};
+
+// --- New Project Form ---
+const setupForm = () => {
+    const form = document.getElementById('project-form');
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('save-project');
+        const originalBtn = btn.innerHTML;
+
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        btn.disabled = true;
+
+        const projectData = {
+            title: document.getElementById('proj-title').value,
+            description: document.getElementById('proj-desc').value,
+            link: document.getElementById('proj-link').value,
+            tags: document.getElementById('proj-tags').value,
+            image: document.getElementById('proj-img').value,
+            createdAt: serverTimestamp()
+        };
 
         try {
-            await addDoc(collection(db, "projects"), {
-                title, description: desc, link, tags, image: img,
-                createdAt: new Date().toISOString()
-            });
-            alert("Added!");
+            await addDoc(collection(db, "projects"), projectData);
+            form.reset();
+            alert("Project successfully published!");
             fetchProjects();
-            // Reset form
-            document.querySelectorAll('.admin-form input, .admin-form textarea').forEach(i => i.value = '');
         } catch (e) {
-            alert("Error adding.");
+            alert("Database Error: " + e.message);
+        } finally {
+            btn.innerHTML = originalBtn;
+            btn.disabled = false;
         }
     };
 };
 
 // --- Animations ---
 function revealOnScroll() {
-    document.querySelectorAll('.reveal').forEach(reveal => {
-        const windowHeight = window.innerHeight;
-        const revealTop = reveal.getBoundingClientRect().top;
-        if (revealTop < windowHeight - 100) reveal.classList.add('active');
+    const animationClasses = ['.reveal-up', '.reveal-left', '.reveal-right', '.reveal-blur', '.reveal'];
+    
+    animationClasses.forEach(cls => {
+        document.querySelectorAll(cls).forEach(el => {
+            const top = el.getBoundingClientRect().top;
+            if (top < window.innerHeight - 100) {
+                el.classList.add('active');
+            }
+        });
     });
 }
 
-// --- Init ---
+// --- Bootstrap ---
 window.addEventListener('load', () => {
     initThree();
     fetchProjects();
-    setupDashboard();
-    
-    // Open modal via lock button
-    document.getElementById('admin-login-btn').onclick = () => {
-        document.getElementById('admin-modal').style.display = 'block';
-    };
+    setupAuth();
+    setupForm();
 
     setTimeout(() => {
-        document.getElementById('loader-wrapper').style.opacity = '0';
-        document.getElementById('loader-wrapper').style.visibility = 'hidden';
+        const loader = document.getElementById('loader-wrapper');
+        loader.style.opacity = '0';
+        setTimeout(() => loader.style.visibility = 'hidden', 800);
         revealOnScroll();
-    }, 1500);
+    }, 2000);
 });
 
 window.addEventListener('scroll', revealOnScroll);
