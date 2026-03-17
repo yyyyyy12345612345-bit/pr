@@ -116,7 +116,6 @@ const initThree = () => {
         requestAnimationFrame(animate);
         time += 0.016;
         floorMaterial.uniforms.uTime.value = time;
-        floorMaterial.uniforms.uCameraPosition.value.copy(camera.position);
         renderer.render(scene, camera);
         controls.update();
     };
