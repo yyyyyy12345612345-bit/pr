@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Youssef Osama | Portfolio</title>
+    <meta name="description" content="Portfolio of Youssef Osama, AI Engineering Student & Full-Stack Web Developer.">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;600;900&family=Roboto:wght@300;400&family=Outfit:wght@300;400;600;800&family=Plus+Jakarta+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Three.js Import Map -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
+            "jsm/": "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/",
+            "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+            "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js",
+            "firebase/analytics": "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js"
+        }
+    }
+    </script>
+</head>
+<body>
+    <!-- Preloader -->
+    <div id="loader-wrapper">
+        <div class="loader"></div>
+    </div>
+
+    <!-- 3D Landing Section -->
+    <section id="home" class="home-3d">
+        <div class="title-3d">
+            <h1>
+                <span>YO</span>
+                <span>US</span>
+                <span>SEF</span>
+            </h1>
+            <ul>
+                <li><a href="#home">Home</a></li>
+                <li><a href="#about">About</a></li>
+                <li><a href="#projects">Projects</a></li>
+                <li><a href="#contact">Contact</a></li>
+                <li id="admin-login-btn"><a href="#"><i class="fas fa-lock"></i></a></li>
+            </ul>
+        </div>
+        <div id="three-container"></div>
+        <div class="scroll-down">
+            <span>Scroll Down</span>
+            <div class="line"></div>
+        </div>
+    </section>
+
+    <!-- Content Sections (Hidden in 3D Home, Shown on Scroll) -->
+    <main id="main-content">
+        <!-- About Section -->
+        <section id="about" class="about reveal">
+            <div class="container">
+                <div class="section-header">
+                    <span class="subtitle">Brief Intro</span>
+                    <h2>About Me</h2>
+                </div>
+                <div class="about-grid">
+                    <div class="about-text">
+                        <p>I'm a second-year **AI engineering student** with a strong passion for web development and building real-world applications.</p>
+                        <p>I focus on creating high-performance, scalable, and user-friendly websites using modern technologies.</p>
+                        <p>Currently, I'm expanding my skills in **web development, cybersecurity, and databases**, while working on freelance projects.</p>
+                        <div class="stats">
+                            <div class="stat-item">
+                                <span class="stat-num">2nd</span>
+                                <span class="stat-label">Year Student</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-num">Full</span>
+                                <span class="stat-label">Stack</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-num">AI</span>
+                                <span class="stat-label">Specialist</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="about-cards">
+                        <div class="card glass">
+                            <i class="fas fa-code"></i>
+                            <h3>Development</h3>
+                            <p>React, Next.js, Node.js, and modern CSS.</p>
+                        </div>
+                        <div class="card glass">
+                            <i class="fas fa-brain"></i>
+                            <h3>AI Logic</h3>
+                            <p>Integrating intelligence into web systems.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Projects Section -->
+        <section id="projects" class="projects reveal">
+            <div class="container">
+                <div class="section-header">
+                    <span class="subtitle">My Portfolio</span>
+                    <h2>Featured Projects</h2>
+                </div>
+                <!-- Project list will be populated by Firebase -->
+                <div class="projects-grid" id="projects-container">
+                    <div class="loading-projects">Loading amazing projects...</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Contact Section -->
+        <section id="contact" class="contact reveal">
+            <div class="container">
+                <div class="contact-box glass">
+                    <h2>Got a project in mind?</h2>
+                    <p>Let's build something amazing together. Reach out via WhatsApp or Instagram.</p>
+                    <div class="contact-links">
+                        <a href="https://wa.me/201020451206" class="contact-item">
+                            <i class="fab fa-whatsapp"></i>
+                            <span>01020451206</span>
+                        </a>
+                        <a href="https://instagram.com/youssef_osama04" class="contact-item">
+                            <i class="fab fa-instagram"></i>
+                            <span>youssef_osama04</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Admin Modal/Dashboard -->
+    <div id="admin-modal" class="modal">
+        <div class="modal-content glass admin-dashboard">
+            <span class="close">&times;</span>
+            
+            <div id="admin-login-section">
+                <h2><i class="fas fa-user-shield"></i> Admin Login</h2>
+                <div class="input-group">
+                    <input type="email" id="admin-email" placeholder="Email (youssefosama@gmail.com)">
+                    <button id="login-btn" class="btn btn-primary">Login</button>
+                </div>
+            </div>
+
+            <div id="admin-main-dashboard" style="display:none;">
+                <div class="dashboard-nav">
+                    <h2>Dashboard</h2>
+                    <div class="tabs">
+                        <button class="tab-btn active" data-tab="add-project">Add Project</button>
+                        <button class="tab-btn" data-tab="manage-projects">Manage Projects</button>
+                    </div>
+                </div>
+
+                <!-- Tab: Add Project -->
+                <div id="add-project-tab" class="tab-content active">
+                    <div class="admin-form">
+                        <input type="text" id="proj-title" placeholder="Project Title">
+                        <textarea id="proj-desc" placeholder="Project Description"></textarea>
+                        <input type="text" id="proj-link" placeholder="Project Link">
+                        <input type="text" id="proj-tags" placeholder="Tags (React, AI, Firebase)">
+                        <input type="text" id="proj-img" placeholder="Image URL (Unsplash or Cloudinary)">
+                        <button id="add-proj-btn" class="btn btn-primary">Add Project</button>
+                    </div>
+                </div>
+
+                <!-- Tab: Manage Projects -->
+                <div id="manage-projects-tab" class="tab-content">
+                    <div id="admin-projects-list" class="admin-list">
+                        <p>Loading projects...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <p>&copy; 2026 Youssef Osama. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Firebase SDK (Modular) -->
+    <script type="module" src="script.js"></script>
+</body>
+</html>
